@@ -14,6 +14,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍽️</text></svg>">
 <link rel="apple-touch-icon" href="icon.png">
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <style>/* Dinner Ballot — styled to sit alongside the campaign site:
    near-black ground, bright teal accent, hairline borders instead of shadows,
@@ -252,6 +253,32 @@ footer{margin:40px 0 0;padding-top:20px;border-top:var(--edge);color:var(--ink-3
 .livedot{width:8px;height:8px;border-radius:99px;background:var(--line-2);flex:0 0 auto;transition:background .2s}
 .livebadge.on .livedot{background:var(--win);box-shadow:0 0 0 3px color-mix(in srgb,var(--win) 25%,transparent)}
 .livebadge.off .livedot{background:var(--heat);box-shadow:0 0 0 3px color-mix(in srgb,var(--heat) 25%,transparent)}
+
+.photobar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 0;padding-top:9px;border-top:1px dashed var(--line-2)}
+.pthumbs{display:flex;gap:6px;flex-wrap:wrap}
+.pthumb{width:40px;height:40px;border-radius:8px;overflow:hidden;border:var(--edge);padding:0;background:var(--surface);cursor:pointer;flex:0 0 auto}
+.pthumb img{width:100%;height:100%;object-fit:cover;display:block}
+.pupload{cursor:pointer}
+.pupload span{display:inline-flex;align-items:center;font:600 11.5px/1 Inter,sans-serif;color:var(--accent-ink);
+  background:var(--accent-soft);border-radius:99px;padding:7px 11px;white-space:nowrap}
+.pupload:hover span{background:color-mix(in srgb,var(--accent) 20%,var(--accent-soft))}
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;
+  z-index:100;padding:24px;flex-direction:column;gap:12px}
+.lightbox.open{display:flex}
+.lightbox img{max-width:100%;max-height:78vh;border-radius:10px;object-fit:contain}
+.lightbox .lbcap{color:#fff;font:600 13px/1 Inter,sans-serif;text-align:center}
+.lightbox .lbclose{position:absolute;top:18px;right:18px;color:#fff;background:rgba(255,255,255,.12);
+  border:none;border-radius:99px;width:36px;height:36px;font-size:18px;cursor:pointer}
+
+.finput{display:block;width:100%;font:500 14px/1 Inter,sans-serif;color:var(--ink);
+  background:var(--surface);border:1px solid var(--line-2);border-radius:9px;padding:11px 12px;margin-top:10px}
+.finput:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.switchlink{font-size:12.5px;color:var(--ink-3);margin-top:12px}
+.switchlink a{color:var(--accent-ink);font-weight:600}
+#familySetup h4{margin-top:4px}
+#famChoices{justify-content:center}
+.famrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.famname{font:700 13px/1 Inter,sans-serif;color:var(--ink)}
 </style>
 </head>
 <body>
@@ -259,18 +286,60 @@ footer{margin:40px 0 0;padding-top:20px;border-top:var(--edge);color:var(--ink-3
 <header class="top"><div class="wrap">
   <p class="kicker">Dinner, decided together</p>
   <h1>Two-Week<br>Dinner Ballot</h1>
-  <p class="lede">Tap everything you'd be happy to eat over the next two weeks. Everyone's picks update
-  here live — no codes, no texting.</p>
+  <p class="lede">Sign in, join or start your family, and everyone's picks — and photos — update
+  here live.</p>
   <div class="gate" id="gate">
-    <h4>First, who are you?</h4>
-    <div class="whoami"><button type="button" data-w="dad" aria-pressed="false">Phil</button><button type="button" data-w="mom" aria-pressed="false">Linzee</button><button type="button" data-w="son" aria-pressed="false">Caden</button><button type="button" data-w="daughter" aria-pressed="false">Rilyn</button></div>
+    <div id="authForms">
+      <div id="signinForm">
+        <h4>Sign in</h4>
+        <input class="finput" type="email" id="si-email" placeholder="Email" autocomplete="email">
+        <input class="finput" type="password" id="si-pass" placeholder="Password" autocomplete="current-password">
+        <button type="button" class="btn" id="si-submit" style="margin-top:12px;width:100%">Sign in</button>
+        <p class="switchlink">New here? <a href="#" id="toSignup">Create an account</a></p>
+      </div>
+      <div id="signupForm" hidden>
+        <h4>Create your account</h4>
+        <input class="finput" type="text" id="su-name" placeholder="Your name" autocomplete="name">
+        <input class="finput" type="email" id="su-email" placeholder="Email" autocomplete="email">
+        <input class="finput" type="password" id="su-pass" placeholder="Password (6+ characters)" autocomplete="new-password">
+        <button type="button" class="btn" id="su-submit" style="margin-top:12px;width:100%">Create account</button>
+        <p class="switchlink">Already have one? <a href="#" id="toSignin">Sign in</a></p>
+      </div>
+    </div>
+    <div id="familySetup" hidden>
+      <h4>Join or start a family</h4>
+      <div class="rowbtns" id="famChoices">
+        <button type="button" class="btn" id="showCreateFamily">Start a new family</button>
+        <button type="button" class="btn ghost" id="showJoinFamily">Join with a code</button>
+      </div>
+      <div id="createFamilyForm" hidden>
+        <input class="finput" type="text" id="fam-name" placeholder="Family name (e.g. The Fergusons)">
+        <button type="button" class="btn" id="fam-create" style="margin-top:12px;width:100%">Create family</button>
+      </div>
+      <div id="joinFamilyForm" hidden>
+        <input class="finput" type="text" id="fam-code" placeholder="Paste the invite code">
+        <button type="button" class="btn" id="fam-join" style="margin-top:12px;width:100%">Join family</button>
+      </div>
+    </div>
+    <p class="msg" id="authmsg"></p>
   </div>
 </div></header>
 
 <div class="bar"><div class="in">
   <span class="mine" id="mine">0 <span>picks</span></span>
   <span class="livebadge" id="livebadge"><i class="livedot"></i><span id="livetext">Connecting…</span></span>
+  <span class="famrow" id="signedInBar" hidden>
+    <span class="famname" id="famname"></span>
+    <button type="button" class="btn ghost" id="showInvite">Invite</button>
+    <button type="button" class="btn ghost" id="signout">Sign out</button>
+  </span>
 </div></div>
+
+<div class="card" id="inviteCard" hidden>
+  <h2>Invite your family</h2>
+  <p>Share this code — they'll enter it under "Join with a code" after creating their own account.</p>
+  <textarea class="code" id="inviteCode" readonly rows="1"></textarea>
+</div>
 
 <main class="wrap">
   <div class="avoid"><b>House rules:</b> no mushrooms, no fresh bell peppers. Every other pepper is
@@ -309,22 +378,23 @@ footer{margin:40px 0 0;padding-top:20px;border-top:var(--edge);color:var(--ink-3
   16 breads, each with its recipe. Everyone's picks sync live for the whole family.</footer>
 </main>
 
+<div class="lightbox" id="lightbox">
+  <button type="button" class="lbclose" id="lbclose">&times;</button>
+  <img id="lbimg" src="" alt="">
+  <div class="lbcap" id="lbcap"></div>
+</div>
+
 <script>
 (function(){
-  var PEOPLE=[{"id": "dad", "label": "Phil", "initial": "P"}, {"id": "mom", "label": "Linzee", "initial": "L"}, {"id": "son", "label": "Caden", "initial": "C"}, {"id": "daughter", "label": "Rilyn", "initial": "R"}], OPTS={"sandwiches": {"label": "Pick one to go with it", "0": ["Chips", "Fries", "Tots"], "1": []}, "meat_potatoes": {"label": "Two sides and a bread", "0": ["Mac and Cheese", "Mashed Potatoes", "Twice-Baked Potatoes", "Fries, Tots, Sweet Potato Fries", "Southern Green Beans", "Roasted Brussels Sprouts with Bacon", "Corn Casserole", "Caesar Side Salad"], "1": ["Skillet Cornbread", "Drop Biscuits", "Beer Bread", "Garlic Butter Log"]}, "southern": {"label": "A side and a bread", "0": ["Mac and Cheese", "Mashed Potatoes", "Twice-Baked Potatoes", "Fries, Tots, Sweet Potato Fries", "Southern Green Beans", "Roasted Brussels Sprouts with Bacon", "Corn Casserole", "Caesar Side Salad"], "1": ["Skillet Cornbread", "Drop Biscuits", "Beer Bread", "Garlic Butter Log"]}, "chicken": {"label": "A side and a bread", "0": ["Mac and Cheese", "Mashed Potatoes", "Twice-Baked Potatoes", "Fries, Tots, Sweet Potato Fries", "Southern Green Beans", "Roasted Brussels Sprouts with Bacon", "Corn Casserole", "Caesar Side Salad"], "1": ["Skillet Cornbread", "Drop Biscuits", "Beer Bread", "Garlic Butter Log"]}, "seafood": {"label": "A side and a bread", "0": ["Mac and Cheese", "Mashed Potatoes", "Twice-Baked Potatoes", "Fries, Tots, Sweet Potato Fries", "Southern Green Beans", "Roasted Brussels Sprouts with Bacon", "Corn Casserole", "Caesar Side Salad"], "1": ["Skillet Cornbread", "Drop Biscuits", "Beer Bread", "Garlic Butter Log"]}, "weekend_project": {"label": "A side and a bread", "0": ["Mac and Cheese", "Mashed Potatoes", "Twice-Baked Potatoes", "Fries, Tots, Sweet Potato Fries", "Southern Green Beans", "Roasted Brussels Sprouts with Bacon", "Corn Casserole", "Caesar Side Salad"], "1": ["Skillet Cornbread", "Drop Biscuits", "Beer Bread", "Garlic Butter Log"]}}, MEALS={"1": {"n": "Pulled pork sandwiches", "c": "sandwiches"}, "2": {"n": "Pulled chicken sandwiches", "c": "sandwiches"}, "3": {"n": "Sloppy joes", "c": "sandwiches"}, "4": {"n": "Cheesesteaks", "c": "sandwiches"}, "5": {"n": "Hamburgers", "c": "sandwiches"}, "6": {"n": "Chicken sandwiches with spicy sauce", "c": "sandwiches"}, "7": {"n": "Smoked sausages / hot dogs", "c": "sandwiches"}, "8": {"n": "Chicken bacon Caesar wraps", "c": "sandwiches"}, "9": {"n": "Burrito bowls - steak", "c": "tex_mex"}, "10": {"n": "Burrito bowls - chicken", "c": "tex_mex"}, "11": {"n": "Taco night", "c": "tex_mex"}, "12": {"n": "Enchiladas", "c": "tex_mex"}, "13": {"n": "Quesadilla night", "c": "tex_mex"}, "14": {"n": "Walking tacos", "c": "tex_mex"}, "15": {"n": "Asian rice bowls", "c": "asian"}, "16": {"n": "Bulgogi noodle bowls", "c": "asian"}, "17": {"n": "General Tso's", "c": "asian"}, "18": {"n": "Beef and broccoli", "c": "asian"}, "19": {"n": "Bourbon chicken", "c": "asian"}, "20": {"n": "Creole sausage and rice with cheese", "c": "southern"}, "21": {"n": "Nashville hot baked chicken", "c": "southern"}, "22": {"n": "Voodoo French Fry chicken bowls", "c": "southern"}, "23": {"n": "Broccoli chicken cheese casserole", "c": "chicken"}, "24": {"n": "Grilled chicken salad night", "c": "chicken"}, "25": {"n": "Smoked wings", "c": "chicken"}, "26": {"n": "Chicken tenders and fries", "c": "chicken"}, "27": {"n": "Chicken nuggets and waffle fries", "c": "chicken"}, "28": {"n": "Hawaiian roll sliders", "c": "chicken"}, "29": {"n": "Spaghetti", "c": "pasta"}, "30": {"n": "Homemade hamburger helper", "c": "pasta"}, "31": {"n": "Chicken Alfredo", "c": "pasta"}, "32": {"n": "Crack chicken Crock-Pot pasta", "c": "pasta"}, "33": {"n": "Chili", "c": "pasta"}, "34": {"n": "Frito or Taki Pie", "c": "pasta"}, "35": {"n": "Baked potato bar", "c": "meat_potatoes"}, "36": {"n": "Ribs", "c": "meat_potatoes"}, "37": {"n": "Steak", "c": "meat_potatoes"}, "38": {"n": "Sliced smoked pork tenderloin", "c": "meat_potatoes"}, "39": {"n": "Breakfast for dinner", "c": "build_your_own"}, "40": {"n": "Pizza muffin cups", "c": "build_your_own"}, "41": {"n": "Ramen bar", "c": "build_your_own"}, "42": {"n": "Nacho bar / totchos", "c": "build_your_own"}, "43": {"n": "Pizza night", "c": "weekend_project"}, "44": {"n": "Fried wings", "c": "weekend_project"}, "45": {"n": "Fish", "c": "seafood"}};
+  var OPTS={"sandwiches": {"label": "Pick one to go with it", "0": ["Chips", "Fries", "Tots"], "1": []}, "meat_potatoes": {"label": "Two sides and a bread", "0": ["Mac and Cheese", "Mashed Potatoes", "Twice-Baked Potatoes", "Fries, Tots, Sweet Potato Fries", "Southern Green Beans", "Roasted Brussels Sprouts with Bacon", "Corn Casserole", "Caesar Side Salad"], "1": ["Skillet Cornbread", "Drop Biscuits", "Beer Bread", "Garlic Butter Log"]}, "southern": {"label": "A side and a bread", "0": ["Mac and Cheese", "Mashed Potatoes", "Twice-Baked Potatoes", "Fries, Tots, Sweet Potato Fries", "Southern Green Beans", "Roasted Brussels Sprouts with Bacon", "Corn Casserole", "Caesar Side Salad"], "1": ["Skillet Cornbread", "Drop Biscuits", "Beer Bread", "Garlic Butter Log"]}, "chicken": {"label": "A side and a bread", "0": ["Mac and Cheese", "Mashed Potatoes", "Twice-Baked Potatoes", "Fries, Tots, Sweet Potato Fries", "Southern Green Beans", "Roasted Brussels Sprouts with Bacon", "Corn Casserole", "Caesar Side Salad"], "1": ["Skillet Cornbread", "Drop Biscuits", "Beer Bread", "Garlic Butter Log"]}, "seafood": {"label": "A side and a bread", "0": ["Mac and Cheese", "Mashed Potatoes", "Twice-Baked Potatoes", "Fries, Tots, Sweet Potato Fries", "Southern Green Beans", "Roasted Brussels Sprouts with Bacon", "Corn Casserole", "Caesar Side Salad"], "1": ["Skillet Cornbread", "Drop Biscuits", "Beer Bread", "Garlic Butter Log"]}, "weekend_project": {"label": "A side and a bread", "0": ["Mac and Cheese", "Mashed Potatoes", "Twice-Baked Potatoes", "Fries, Tots, Sweet Potato Fries", "Southern Green Beans", "Roasted Brussels Sprouts with Bacon", "Corn Casserole", "Caesar Side Salad"], "1": ["Skillet Cornbread", "Drop Biscuits", "Beer Bread", "Garlic Butter Log"]}}, MEALS={"1": {"n": "Pulled pork sandwiches", "c": "sandwiches"}, "2": {"n": "Pulled chicken sandwiches", "c": "sandwiches"}, "3": {"n": "Sloppy joes", "c": "sandwiches"}, "4": {"n": "Cheesesteaks", "c": "sandwiches"}, "5": {"n": "Hamburgers", "c": "sandwiches"}, "6": {"n": "Chicken sandwiches with spicy sauce", "c": "sandwiches"}, "7": {"n": "Smoked sausages / hot dogs", "c": "sandwiches"}, "8": {"n": "Chicken bacon Caesar wraps", "c": "sandwiches"}, "9": {"n": "Burrito bowls - steak", "c": "tex_mex"}, "10": {"n": "Burrito bowls - chicken", "c": "tex_mex"}, "11": {"n": "Taco night", "c": "tex_mex"}, "12": {"n": "Enchiladas", "c": "tex_mex"}, "13": {"n": "Quesadilla night", "c": "tex_mex"}, "14": {"n": "Walking tacos", "c": "tex_mex"}, "15": {"n": "Asian rice bowls", "c": "asian"}, "16": {"n": "Bulgogi noodle bowls", "c": "asian"}, "17": {"n": "General Tso's", "c": "asian"}, "18": {"n": "Beef and broccoli", "c": "asian"}, "19": {"n": "Bourbon chicken", "c": "asian"}, "20": {"n": "Creole sausage and rice with cheese", "c": "southern"}, "21": {"n": "Nashville hot baked chicken", "c": "southern"}, "22": {"n": "Voodoo French Fry chicken bowls", "c": "southern"}, "23": {"n": "Broccoli chicken cheese casserole", "c": "chicken"}, "24": {"n": "Grilled chicken salad night", "c": "chicken"}, "25": {"n": "Smoked wings", "c": "chicken"}, "26": {"n": "Chicken tenders and fries", "c": "chicken"}, "27": {"n": "Chicken nuggets and waffle fries", "c": "chicken"}, "28": {"n": "Hawaiian roll sliders", "c": "chicken"}, "29": {"n": "Spaghetti", "c": "pasta"}, "30": {"n": "Homemade hamburger helper", "c": "pasta"}, "31": {"n": "Chicken Alfredo", "c": "pasta"}, "32": {"n": "Crack chicken Crock-Pot pasta", "c": "pasta"}, "33": {"n": "Chili", "c": "pasta"}, "34": {"n": "Frito or Taki Pie", "c": "pasta"}, "35": {"n": "Baked potato bar", "c": "meat_potatoes"}, "36": {"n": "Ribs", "c": "meat_potatoes"}, "37": {"n": "Steak", "c": "meat_potatoes"}, "38": {"n": "Sliced smoked pork tenderloin", "c": "meat_potatoes"}, "39": {"n": "Breakfast for dinner", "c": "build_your_own"}, "40": {"n": "Pizza muffin cups", "c": "build_your_own"}, "41": {"n": "Ramen bar", "c": "build_your_own"}, "42": {"n": "Nacho bar / totchos", "c": "build_your_own"}, "43": {"n": "Pizza night", "c": "weekend_project"}, "44": {"n": "Fried wings", "c": "weekend_project"}, "45": {"n": "Fish", "c": "seafood"}};
   var DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-  var K={me:"mp.me"};
   var $=function(s,r){return (r||document).querySelector(s)};
   var $$=function(s,r){return Array.from((r||document).querySelectorAll(s))};
-  function get(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
-  function set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
   function esc(s){return String(s).replace(/[&<>"]/g,function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
 
   // =========================================================================
-  // FIREBASE SETUP — replace the values below with your own project's config.
-  // Firebase console → Project settings → General → "Your apps" → SDK setup
-  // and configuration → Config. Paste the whole object here.
+  // FIREBASE SETUP
   // =========================================================================
   var firebaseConfig = {
     apiKey: "AIzaSyAVT9x4EF5Ou09w5xMlwOfMC8UsgUNWabw",
@@ -335,8 +405,8 @@ footer{margin:40px 0 0;padding-top:20px;border-top:var(--edge);color:var(--ink-3
     messagingSenderId: "298824014960",
     appId: "1:298824014960:web:92b20c186490355e04e8b5"
   };
-
-  var db=null, ballotsRef=null, ALL={}, initialized=false, connected=false;
+  var auth=null, db=null, ballotsRef=null, photosRef=null, membersRef=null;
+  var currentUser=null, familyId=null, FAMILY_MEMBERS={}, ALL={}, PHOTOS={}, initialized=false, connected=false;
 
   function setLive(state,text){
     var b=$("#livebadge"); if(!b)return;
@@ -346,13 +416,147 @@ footer{margin:40px 0 0;padding-top:20px;border-top:var(--edge);color:var(--ink-3
 
   try{
     firebase.initializeApp(firebaseConfig);
+    auth=firebase.auth();
     db=firebase.database();
-    ballotsRef=db.ref("ballots");
   }catch(e){
     setLive(false,"Backend not configured");
   }
 
-  // ---- read / write my picks ----
+  function authMsg(t,k){ var el=$("#authmsg"); if(el){el.textContent=t; el.className="msg "+(k||"")} }
+  function showSigninForm(){ $("#signinForm").hidden=false; $("#signupForm").hidden=true; authMsg("","") }
+  function showSignupForm(){ $("#signinForm").hidden=true; $("#signupForm").hidden=false; authMsg("","") }
+
+  // ---- auth wiring ----
+  $("#toSignup").addEventListener("click",function(e){e.preventDefault();showSignupForm()});
+  $("#toSignin").addEventListener("click",function(e){e.preventDefault();showSigninForm()});
+
+  $("#si-submit").addEventListener("click",function(){
+    var email=$("#si-email").value.trim(), pass=$("#si-pass").value;
+    if(!email||!pass){authMsg("Enter your email and password.","bad");return}
+    authMsg("Signing in\u2026","");
+    auth.signInWithEmailAndPassword(email,pass).catch(function(err){authMsg(err.message,"bad")});
+  });
+
+  $("#su-submit").addEventListener("click",function(){
+    var name=$("#su-name").value.trim(), email=$("#su-email").value.trim(), pass=$("#su-pass").value;
+    if(!name||!email||!pass){authMsg("Fill in your name, email, and a password.","bad");return}
+    if(pass.length<6){authMsg("Password needs to be at least 6 characters.","bad");return}
+    authMsg("Creating your account\u2026","");
+    auth.createUserWithEmailAndPassword(email,pass).then(function(cred){
+      return cred.user.updateProfile({displayName:name}).then(function(){
+        return db.ref("users/"+cred.user.uid+"/name").set(name);
+      });
+    }).catch(function(err){authMsg(err.message,"bad")});
+  });
+
+  $("#showCreateFamily").addEventListener("click",function(){
+    $("#createFamilyForm").hidden=false; $("#joinFamilyForm").hidden=true;
+  });
+  $("#showJoinFamily").addEventListener("click",function(){
+    $("#joinFamilyForm").hidden=false; $("#createFamilyForm").hidden=true;
+  });
+
+  $("#fam-create").addEventListener("click",function(){
+    var name=$("#fam-name").value.trim();
+    if(!name){authMsg("Give your family a name.","bad");return}
+    if(!currentUser)return;
+    authMsg("Creating your family\u2026","");
+    var newFamRef=db.ref("families").push();
+    var fid=newFamRef.key, uid=currentUser.uid, uname=currentUser.displayName||"Someone";
+    newFamRef.set({name:name}).then(function(){
+      return newFamRef.child("members/"+uid).set({name:uname,role:"owner"});
+    }).then(function(){
+      return db.ref("users/"+uid+"/familyId").set(fid);
+    }).then(function(){
+      enterFamily(fid);
+    }).catch(function(err){authMsg(err.message,"bad")});
+  });
+
+  $("#fam-join").addEventListener("click",function(){
+    var code=$("#fam-code").value.trim();
+    if(!code){authMsg("Paste the invite code first.","bad");return}
+    if(!currentUser)return;
+    authMsg("Joining\u2026","");
+    db.ref("families/"+code+"/name").once("value").then(function(snap){
+      if(!snap.exists()){authMsg("That code was not recognized.","bad");throw new Error("stop")}
+      var uid=currentUser.uid, uname=currentUser.displayName||"Someone";
+      return db.ref("families/"+code+"/members/"+uid).set({name:uname,role:"member"})
+        .then(function(){return db.ref("users/"+uid+"/familyId").set(code)})
+        .then(function(){enterFamily(code)});
+    }).catch(function(err){ if(err.message!=="stop") authMsg(err.message,"bad") });
+  });
+
+  $("#signout").addEventListener("click",function(){ auth.signOut(); });
+
+  $("#showInvite").addEventListener("click",function(){
+    var c=$("#inviteCard"); c.hidden=!c.hidden;
+  });
+
+  function teardown(){
+    if(ballotsRef) ballotsRef.off();
+    if(photosRef) photosRef.off();
+    if(membersRef) membersRef.off();
+    ballotsRef=null; photosRef=null; membersRef=null;
+    ALL={}; PHOTOS={}; FAMILY_MEMBERS={}; familyId=null; initialized=false;
+  }
+
+  function enterFamily(fid){
+    familyId=fid;
+    ballotsRef=db.ref("families/"+fid+"/ballots");
+    photosRef=db.ref("families/"+fid+"/photos");
+    membersRef=db.ref("families/"+fid+"/members");
+    $("#gate").hidden=true;
+    $("#signedInBar").hidden=false;
+    $("#inviteCode").value=fid;
+    db.ref("families/"+fid+"/name").once("value").then(function(snap){
+      $("#famname").textContent=snap.val()||"Your family";
+    });
+    membersRef.on("value",function(snap){
+      FAMILY_MEMBERS=snap.val()||{};
+      paint();
+    });
+    ballotsRef.on("value",function(snap){
+      ALL=snap.val()||{};
+      if(!initialized){restoreMineFromCache();initialized=true}
+      paint();
+    },function(err){ setLive(false,"Sync error") });
+    photosRef.on("value",function(snap){
+      PHOTOS=snap.val()||{};
+      renderPhotoStrips();
+    });
+    db.ref(".info/connected").on("value",function(snap){
+      connected=!!snap.val();
+      setLive(connected,connected?"Live":"Reconnecting\u2026");
+    });
+  }
+
+  if(auth){
+    auth.onAuthStateChanged(function(user){
+      currentUser=user;
+      if(!user){
+        teardown();
+        $("#gate").hidden=false;
+        $("#authForms").hidden=false;
+        $("#familySetup").hidden=true;
+        $("#signedInBar").hidden=true;
+        $("#inviteCard").hidden=true;
+        paint();
+        return;
+      }
+      $("#authForms").hidden=true;
+      db.ref("users/"+user.uid+"/familyId").once("value").then(function(snap){
+        var fid=snap.val();
+        if(!fid){
+          $("#familySetup").hidden=false;
+          $("#gate").hidden=false;
+          return;
+        }
+        enterFamily(fid);
+      });
+    });
+  }
+
+  // ---- votes ----
   function readMineFromDOM(){
     return {
       m: $$('.row > .ck > input[data-m]:checked').map(function(i){return +i.dataset.m}),
@@ -360,16 +564,64 @@ footer{margin:40px 0 0;padding-top:20px;border-top:var(--edge);color:var(--ink-3
     };
   }
   function writeMine(){
-    var me=get(K.me,"");
-    if(!me||!ballotsRef)return;
-    ballotsRef.child(me).set(readMineFromDOM());
+    if(!currentUser||!ballotsRef)return;
+    ballotsRef.child(currentUser.uid).set(readMineFromDOM());
   }
-  function clearAllCheckboxes(){ $$('input[type=checkbox]').forEach(function(i){i.checked=false}) }
   function restoreMineFromCache(){
-    var me=get(K.me,""); if(!me||!ALL[me])return;
-    (ALL[me].m||[]).forEach(function(id){var i=$('.row > .ck > input[data-m="'+id+'"]'); if(i)i.checked=true});
-    (ALL[me].p||[]).forEach(function(k){var i=$('.pick input[data-p="'+CSS.escape(k)+'"]'); if(i)i.checked=true});
+    if(!currentUser||!ALL[currentUser.uid])return;
+    var mine=ALL[currentUser.uid];
+    (mine.m||[]).forEach(function(id){var i=$('.row > .ck > input[data-m="'+id+'"]'); if(i)i.checked=true});
+    (mine.p||[]).forEach(function(k){var i=$('.pick input[data-p="'+CSS.escape(k)+'"]'); if(i)i.checked=true});
   }
+
+  // ---- photos ----
+  function compressImage(file,cb){
+    var reader=new FileReader();
+    reader.onload=function(e){
+      var img=new Image();
+      img.onload=function(){
+        var maxDim=640, w=img.width, h=img.height;
+        if(w>h){ if(w>maxDim){h=Math.round(h*maxDim/w);w=maxDim} }
+        else{ if(h>maxDim){w=Math.round(w*maxDim/h);h=maxDim} }
+        var c=document.createElement("canvas"); c.width=w; c.height=h;
+        c.getContext("2d").drawImage(img,0,0,w,h);
+        cb(c.toDataURL("image/jpeg",0.6));
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function injectPhotoBars(){
+    $$(".row[data-m]").forEach(function(row){
+      if(row.querySelector(".photobar"))return;
+      var mid=row.dataset.m;
+      var bar=document.createElement("div");
+      bar.className="photobar";
+      bar.dataset.mid=mid;
+      bar.innerHTML='<div class="pthumbs" id="pthumbs-'+mid+'"></div>'+
+        '<label class="pupload"><input type="file" accept="image/*" capture="environment" data-photo-input="'+mid+'" hidden><span>\uD83D\uDCF7 Add a photo</span></label>';
+      row.appendChild(bar);
+    });
+  }
+
+  function renderPhotoStrips(){
+    Object.keys(PHOTOS).forEach(function(mid){
+      var host=$("#pthumbs-"+mid); if(!host)return;
+      var entries=Object.keys(PHOTOS[mid]).map(function(k){return PHOTOS[mid][k]});
+      entries.sort(function(a,b){return (a.ts||0)-(b.ts||0)});
+      host.innerHTML=entries.map(function(p){
+        return '<button type="button" class="pthumb" data-by="'+esc(p.by||"")+'" data-full="'+p.dataUrl+'">'+
+          '<img src="'+p.dataUrl+'" alt="Photo by '+esc(p.by||"")+'"></button>';
+      }).join("");
+    });
+  }
+
+  function openLightbox(src,caption){
+    $("#lbimg").src=src; $("#lbcap").textContent=caption||"";
+    $("#lightbox").classList.add("open");
+  }
+  function closeLightbox(){ $("#lbimg").src=""; $("#lightbox").classList.remove("open"); }
 
   function sideName(mid,kind,idx){
     var cat=MEALS[mid]&&MEALS[mid].c; var o=OPTS[cat]; if(!o)return null;
@@ -386,20 +638,15 @@ footer{margin:40px 0 0;padding-top:20px;border-top:var(--edge);color:var(--ink-3
       .concat(b.slice(0,1).map(function(x){return x.n}))}
 
   function paint(){
-    var me=get(K.me,"");
-    $$(".whoami button").forEach(function(b){b.setAttribute("aria-pressed",String(b.dataset.w===me))});
-    $("#gate").hidden=!!me;
-
     var mine=readMineFromDOM();
-    $("#mine").innerHTML=mine.m.length+' <span>'+(mine.m.length===1?"pick":"picks")+'</span>';
+    $("#mine").innerHTML=mine.m.length+' <span>'+(mine.m.length===1?"pick":"picks")+"</span>";
 
     var who=Object.keys(ALL), n=who.length;
-    $("#who2").innerHTML=PEOPLE.map(function(p){
-      var got=ALL[p.id]; var count=got&&got.m?got.m.length:0;
-      return '<span class="pchip'+(count?"":" zero")+'">'+esc(p.label)+
-        (got?" "+count:" —")+'</span>'}).join("");
+    $("#who2").innerHTML=Object.keys(FAMILY_MEMBERS).map(function(uid){
+      var mem=FAMILY_MEMBERS[uid]; var got=ALL[uid]; var count=got&&got.m?got.m.length:0;
+      return '<span class="pchip'+(count?"":" zero")+'">'+esc(mem.name||"Someone")+
+        (got?" "+count:" \u2014")+"</span>"}).join("");
 
-    // tally
     var score={},sides={};
     who.forEach(function(w){
       (ALL[w].m||[]).forEach(function(id){score[id]=(score[id]||0)+1});
@@ -409,15 +656,14 @@ footer{margin:40px 0 0;padding-top:20px;border-top:var(--edge);color:var(--ink-3
     var box=$("#tally");
     if(!ids.length){box.innerHTML='<p class="empty">No picks yet.</p>'}
     else{
-      box.innerHTML='<ul class="tally">'+ids.map(function(id,i){
+      box.innerHTML="<ul class=\"tally\">"+ids.map(function(id,i){
         var pct=Math.round(score[id]/n*100), w=trim(id,sides);
         return '<li class="'+(i<14?"top ":"")+(i<3?"medal":"")+'">'+
-          '<span class="rank">'+(i+1)+'</span><span><span class="mealname">'+esc(MEALS[id].n)+'</span>'+
-          (w.length?'<span class="sidenote">with '+esc(w.join(", "))+'</span>':'')+
+          '<span class="rank">'+(i+1)+'</span><span><span class="mealname">'+esc(MEALS[id].n)+"</span>"+
+          (w.length?'<span class="sidenote">with '+esc(w.join(", "))+"</span>":"")+
           '<span class="meter"><i style="width:'+pct+'%"></i></span></span>'+
-          '<span class="pct">'+pct+'%</span></li>'}).join("")+'</ul>'}
+          '<span class="pct">'+pct+"%</span></li>"}).join("")+"</ul>"}
 
-    // fortnight
     var cal=$("#cal");
     if(!ids.length){cal.innerHTML='<p class="empty">Needs at least one pick.</p>';return}
     var top=ids.slice(0,14).map(function(id){
@@ -433,46 +679,46 @@ footer{margin:40px 0 0;padding-top:20px;border-top:var(--edge);color:var(--ink-3
     cal.innerHTML='<div class="weeks">'+[0,1].map(function(k){
       return '<div class="wk"><h4>Week '+(k+1)+'</h4><ul class="cal">'+
         slots.filter(function(s){return s.wk===k}).map(function(o){
-          return '<li class="'+(o.we?"we":"")+'"><span class="d">'+o.day+'</span><span>'+
-            (o.meal?'<span class="mealname">'+esc(o.meal.n)+'</span>'+
-              (o.meal.w.length?'<span class="sidenote">with '+esc(o.meal.w.join(", "))+'</span>':'')
-              :'<span class="empty">open</span>')+'</span></li>'}).join("")+'</ul></div>'}).join("")+'</div>'}
+          return '<li class="'+(o.we?"we":"")+'"><span class="d">'+o.day+"</span><span>"+
+            (o.meal?'<span class="mealname">'+esc(o.meal.n)+"</span>"+
+              (o.meal.w.length?'<span class="sidenote">with '+esc(o.meal.w.join(", "))+"</span>":"")
+              :'<span class="empty">open</span>')+"</span></li>"}).join("")+"</ul></div>"}).join("")+"</div>"}
 
   // ---- wiring ----
-  $$(".whoami button").forEach(function(b){b.addEventListener("click",function(){
-    set(K.me,b.dataset.w);
-    clearAllCheckboxes();
-    restoreMineFromCache();
-    paint()})});
+  document.addEventListener("change",function(ev){
+    if(ev.target.matches("input[type=checkbox]")&&(ev.target.dataset.m!==undefined||ev.target.dataset.p!==undefined)){
+      paint();
+      writeMine();
+    }
+  });
 
   document.addEventListener("change",function(ev){
-    if(ev.target.matches('input[type=checkbox]')){
-      paint();      // instant local feedback
-      writeMine();  // push to everyone
-    }});
+    if(ev.target.matches("input[type=file][data-photo-input]")){
+      var mid=ev.target.dataset.photoInput;
+      var file=ev.target.files&&ev.target.files[0];
+      if(!file)return;
+      if(!currentUser||!photosRef){alert("Sign in first.");ev.target.value="";return}
+      var name=currentUser.displayName||"Someone";
+      compressImage(file,function(dataUrl){
+        photosRef.child(mid).push({by:name,dataUrl:dataUrl,ts:Date.now()});
+      });
+      ev.target.value="";
+    }
+  });
 
-  $$(".tools #openall,#openall").forEach(function(){});
+  document.addEventListener("click",function(ev){
+    var t=ev.target.closest(".pthumb");
+    if(t){openLightbox(t.dataset.full,"Photo by "+t.dataset.by);return}
+    if(ev.target.id==="lbclose"||ev.target.id==="lightbox"){closeLightbox()}
+  });
+
   $("#openall").addEventListener("click",function(){
     $$(".grp").forEach(function(d){d.open=true})});
   $("#shutall").addEventListener("click",function(){
     $$(".grp").forEach(function(d){d.open=false})});
 
-  // ---- live sync ----
-  if(ballotsRef){
-    ballotsRef.on("value",function(snap){
-      ALL=snap.val()||{};
-      if(!initialized){restoreMineFromCache();initialized=true}
-      paint();
-    },function(err){
-      setLive(false,"Sync error");
-    });
-    db.ref(".info/connected").on("value",function(snap){
-      connected=!!snap.val();
-      setLive(connected,connected?"Live":"Reconnecting…");
-    });
-  } else {
-    paint();
-  }
+  injectPhotoBars();
+  paint();
 })();
 </script>
 </body>
